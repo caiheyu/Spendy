@@ -1,0 +1,42 @@
+# Gradle and Kotlin caches
+.gradle/
+.kotlin/
+
+# Build outputs in every module
+build/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Local Android SDK configuration
+local.properties
+
+# Android Studio / IntelliJ local project metadata
+/.idea/
+*.iml
+*.ipr
+*.iws
+
+# Native build outputs and profiler captures
+.externalNativeBuild/
+.cxx/
+/captures/
+*.hprof
+
+# Local signing keys and credentials
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+/.env
+/.env.*
+!/.env.example
+
+# Logs and operating system files
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Keep Gradle Wrapper scripts, configuration and gradle-wrapper.jar in Git.
