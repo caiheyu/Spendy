@@ -6,11 +6,18 @@
 build/
 *.apk
 *.aab
+*.apks
 *.ap_
 *.dex
+*.idsig
+
+# Android Studio signing-wizard output (do not ignore app/src/release).
+/app/release/
+/app/debug/
 
 # Local Android SDK configuration
 local.properties
+*.local.properties
 
 # Android Studio / IntelliJ local project metadata
 /.idea/
@@ -26,12 +33,52 @@ local.properties
 
 # Local signing keys and credentials
 *.jks
+*.jks.*
 *.keystore
+*.keystore.*
+*.p12
+*.pfx
+*.key
+*.pem
+key.properties
+key.properties.*
 keystore.properties
+keystore.properties.*
 signing.properties
-/.env
-/.env.*
-!/.env.example
+signing.properties.*
+!key.properties.example
+!keystore.properties.example
+!signing.properties.example
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# Private ledger backups, exported data, and local database copies.
+*.spendy
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+/backups/
+/exports/
+
+# Editor backups, temporary files, and JVM crash dumps.
+*.tmp
+*.temp
+*.bak
+*.orig
+*.swp
+*.swo
+*~
+hs_err_pid*
+replay_pid*
 
 # Logs and operating system files
 *.log
