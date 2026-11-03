@@ -180,6 +180,7 @@ class LedgerRepository @Inject constructor(private val db: SpendyDatabase, val p
     companion object {
         fun validateSettings(s: AppSettings) {
             require(s.theme in listOf("system", "light", "dark") && Regex("#[0-9a-fA-F]{6}").matches(s.accent) && s.lastBackupAt >= 0 && s.backedUpRevision >= -1 && s.backedUpEntryCount >= 0 && (s.backedUpPreferencesHash.isEmpty() || Regex("[0-9a-f]{64}").matches(s.backedUpPreferencesHash))) { "备份偏好设置无效" }
+            s.iconLibrary.validate()
         }
     }
 }

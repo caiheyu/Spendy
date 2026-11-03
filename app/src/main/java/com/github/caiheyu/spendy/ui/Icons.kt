@@ -3,11 +3,23 @@ package com.github.caiheyu.spendy.ui
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
 import com.github.caiheyu.spendy.R
+import com.github.caiheyu.spendy.domain.IconLibrary
+
+val LocalIconLibrary = compositionLocalOf { IconLibrary() }
+
+@Composable
+fun LibrarySIcon(name: String, description: String? = null, modifier: Modifier = Modifier, tint: Color = LocalContentColor.current) {
+    val library = LocalIconLibrary.current
+    val image = remember(library, name) { library.imageFor(name) }
+    SIcon(image, description, modifier, tint)
+}
 
 private val iconIds = mapOf(
     "utensils" to R.drawable.ic_utensils,

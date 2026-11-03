@@ -5,6 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
@@ -88,9 +89,11 @@ data class AppSettings(
     val hideAmounts: Boolean = true, val lastBackupAt: Long = 0, val backedUpRevision: Long = -1,
     val backedUpEntryCount: Int = 0,
     val backedUpPreferencesHash: String = "",
+    val iconLibrary: IconLibrary = IconLibrary(),
 ) {
     fun preferencesHash(): String = java.security.MessageDigest.getInstance("SHA-256")
-        .digest("$theme|$accent|$dynamicColor|$hideAmounts".toByteArray(Charsets.UTF_8))
+        .digest(("$theme|$accent|$dynamicColor|$hideAmounts" +
+            if (iconLibrary == IconLibrary()) "" else "|${Json.encodeToString(iconLibrary)}").toByteArray(Charsets.UTF_8))
         .joinToString("") { "%02x".format(it.toInt() and 0xff) }
     fun isBackupCurrent(revision: Long) = backedUpRevision == revision && backedUpPreferencesHash == preferencesHash()
 }

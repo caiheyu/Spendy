@@ -2,6 +2,7 @@
 package com.github.caiheyu.spendy.ui
 
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,6 +12,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -19,6 +23,8 @@ import com.github.caiheyu.spendy.ui.theme.*
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @Composable
 fun TransactionsScreen(vm: SpendyViewModel, s: LedgerState, onEntry: (Entry) -> Unit, onAdd: () -> Unit,
@@ -99,12 +105,40 @@ fun LazyListScope.entryGroups(s: LedgerState, entries: List<Entry>, onEntry: (En
         items(rows, key = { it.id }) { e ->
             Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface) {
                 if (onDelete != null && !selectable) {
-                    val swipe = rememberSwipeToDismissBoxState(confirmValueChange = { value -> if (value == SwipeToDismissBoxValue.EndToStart) onDelete(e); false })
-                    SwipeToDismissBox(swipe, enableDismissFromStartToEnd = false, backgroundContent = {
-                        Box(Modifier.fillMaxSize().background(Expense).padding(end = 24.dp), contentAlignment = Alignment.CenterEnd) { SIcon("trash", "删除账单", tint = Color.White) }
-                    }) { Surface(color = MaterialTheme.colorScheme.surface) { EntryRow(s, e, { onEntry(e) }) } }
+                    SwipeableEntryRow(s, e, { onEntry(e) }, { onDelete(e) })
                 } else EntryRow(s, e, { onEntry(e) }, e.id in selected, selectable && e.kind == "normal" && e.type in listOf("expense", "income"))
             }
+        }
+    }
+}
+
+@Composable
+private fun SwipeableEntryRow(s: LedgerState, entry: Entry, onEntry: () -> Unit, onDelete: () -> Unit) {
+    val actionWidth = 80.dp
+    val actionWidthPx = with(LocalDensity.current) { actionWidth.toPx() }
+    val swipe = remember(entry.id) { AnchoredDraggableState(false) }
+    val revealed by remember { derivedStateOf { swipe.offset < 0f } }
+    val scope = rememberCoroutineScope()
+    SideEffect {
+        swipe.updateAnchors(DraggableAnchors { false at 0f; true at -actionWidthPx })
+    }
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).anchoredDraggable(swipe, Orientation.Horizontal)) {
+        if (revealed) Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
+            Column(Modifier.fillMaxHeight().width(actionWidth).background(Expense)
+                .semantics { contentDescription = "删除账单" }
+                .clickable {
+                    scope.launch { swipe.animateTo(false) }
+                    onDelete()
+                }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                SIcon("trash", tint = Color.White)
+                Text("删除", color = Color.White, fontSize = 12.sp)
+            }
+        }
+        Surface(modifier = Modifier.offset { IntOffset(swipe.requireOffset().roundToInt(), 0) },
+            shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface) {
+            EntryRow(s, entry, {
+                if (swipe.requireOffset() != 0f) scope.launch { swipe.animateTo(false) } else onEntry()
+            })
         }
     }
 }
@@ -176,7 +210,7 @@ fun EntryDetails(vm: SpendyViewModel, s: LedgerState, e: Entry, onBack: () -> Un
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { PageHeader("账单详情", onBack, action = { IconButton(onClick = onEdit) { SIcon("pencil", "编辑") } }) }
         item { SpendCard(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically) { IconCircle(c?.icon ?: if (e.type == "transfer") "refresh" else "wallet", c?.color?.let(::colorOf) ?: MaterialTheme.colorScheme.primary); Spacer(Modifier.width(12.dp)); Text(c?.name ?: if (e.type == "transfer") "账户转账" else "余额调整", fontWeight = FontWeight.Bold) }
+            Row(verticalAlignment = Alignment.CenterVertically) { IconCircle(c?.icon ?: if (e.type == "transfer") "refresh" else "wallet", c?.color?.let(::colorOf) ?: MaterialTheme.colorScheme.primary, libraryIcon = c != null); Spacer(Modifier.width(12.dp)); Text(c?.name ?: if (e.type == "transfer") "账户转账" else "余额调整", fontWeight = FontWeight.Bold) }
             Text("¥ ${Money.format(e.amountMinor)}", fontSize = 34.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 24.dp))
             listOf("类型" to when { e.kind == "refund" -> "关联退款"; e.kind == "reimbursement" -> "报销回收"; e.type == "expense" -> "支出"; e.type == "income" -> "收入"; e.type == "transfer" -> "转账"; else -> "调整" },
                 "账户" to (s.account(e.accountId)?.name ?: ""), "日期" to e.date,

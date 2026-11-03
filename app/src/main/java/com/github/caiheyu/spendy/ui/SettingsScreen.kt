@@ -24,7 +24,7 @@ import com.github.caiheyu.spendy.domain.*
 import com.github.caiheyu.spendy.ui.theme.*
 
 @Composable
-fun SettingsScreen(vm: SpendyViewModel, s: LedgerState, onManage: (String) -> Unit, onData: () -> Unit) {
+fun SettingsScreen(vm: SpendyViewModel, s: LedgerState, onManage: (String) -> Unit, onData: () -> Unit, onIcons: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val update by vm.availableUpdate.collectAsStateWithLifecycle()
     val downloadedApk by vm.updateApk.collectAsStateWithLifecycle()
@@ -50,6 +50,7 @@ fun SettingsScreen(vm: SpendyViewModel, s: LedgerState, onManage: (String) -> Un
             SettingRow("grid", "分类管理", "主分类、子分类与排序") { onManage("category") }
             SettingRow("tag", "标签管理", "为生活添加不同维度") { onManage("tag") }
             SettingRow("wallet", "账户管理", "期初余额、归档与图标") { onManage("account") }
+            SettingRow("palette", "图标管理", "添加图片、移除图标与统一复用", onClick = onIcons)
         } }
         item { SpendCard {
             SectionTitle("偏好设置")

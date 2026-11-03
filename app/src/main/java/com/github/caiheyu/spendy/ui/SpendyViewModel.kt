@@ -22,6 +22,7 @@ class SpendyViewModel @Inject constructor(val repository: LedgerRepository, val 
     val canUndoRestore = repository.canUndoRestore.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val fatal = MutableStateFlow<String?>(null)
     val editor = MutableStateFlow<EntryDraft?>(null)
+    val editorError = MutableStateFlow<String?>(null)
     val busy = MutableStateFlow(false)
     val messages = Channel<String>(Channel.BUFFERED)
     private var draftJob: Job? = null
@@ -35,7 +36,7 @@ class SpendyViewModel @Inject constructor(val repository: LedgerRepository, val 
         if (availableUpdate.value == null) message("当前已是最新版本")
     }
     fun message(text: String) { messages.trySend(text) }
-    fun action(success: String? = null, done: () -> Unit = {}, block: suspend () -> Unit) {
+    fun action(success: String? = null, done: () -> Unit = {}, onError: (String) -> Unit = ::message, block: suspend () -> Unit) {
         if (busy.value) return
         viewModelScope.launch {
             busy.value = true
@@ -43,7 +44,7 @@ class SpendyViewModel @Inject constructor(val repository: LedgerRepository, val 
             catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 if (com.github.caiheyu.spendy.BuildConfig.DEBUG) android.util.Log.e("Spendy", "Operation failed", e)
-                message(e.message ?: "操作失败，请重试")
+                onError(e.message ?: "操作失败，请重试")
             }
             finally { busy.value = false }
         }
@@ -51,6 +52,7 @@ class SpendyViewModel @Inject constructor(val repository: LedgerRepository, val 
     fun changeSettings(transform: (AppSettings) -> AppSettings) { viewModelScope.launch { runCatching { preferences.change(transform) }.onFailure { message("设置保存失败") } } }
     fun openEditor(e: Entry? = null, copy: Boolean = false, kind: String? = null) {
         val s = ledger.value ?: return
+        editorError.value = null
         editor.value = when {
             kind != null && e != null -> EntryDraft(kind = kind, expression = Money.decimal(e.amountMinor - Ledger.recovered(s, e.id)),
                 accountId = s.accounts.firstOrNull { !it.archived }?.id.orEmpty(), categoryId = e.categoryId,
@@ -63,6 +65,7 @@ class SpendyViewModel @Inject constructor(val repository: LedgerRepository, val 
     }
     fun updateDraft(draft: EntryDraft) {
         editor.value = draft
+        editorError.value = null
         draftJob?.cancel()
         draftJob = viewModelScope.launch { delay(250); preferences.saveDraft(draft) }
     }
@@ -72,11 +75,12 @@ class SpendyViewModel @Inject constructor(val repository: LedgerRepository, val 
     }
     fun saveEditor(again: Boolean, done: () -> Unit) {
         val draft = editor.value ?: return
+        editorError.value = null
         draftJob?.cancel()
         action("已记好这一笔", done = {
             if (again) editor.value = draft.copy(id = null, expression = "", note = "", newEntryId = newId())
             else { editor.value = null; done() }
-        }) {
+        }, onError = { editorError.value = it }) {
             val entry = draft.toEntry()
             require(entry.amountMinor > 0 || entry.kind != "normal" || entry.type == "adjustment") { "请输入大于 0 的金额" }
             repository.save(entry)

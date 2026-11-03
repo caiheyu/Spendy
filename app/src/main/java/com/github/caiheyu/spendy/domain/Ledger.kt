@@ -38,6 +38,12 @@ object Ledger {
         val accounts = s.accounts.associateBy { it.id }; val cats = s.categories.associateBy { it.id }
         val subs = s.subcategories.associateBy { it.id }; val tags = s.tags.associateBy { it.id }
         val entries = s.transactions.associateBy { it.id }
+        fun accountDate(account: Account, entryDate: String) {
+            // A default zero opening balance must not block historical bookkeeping.
+            require(account.openingBalanceMinor == 0L || entryDate >= account.openedOn) {
+                "账单日期早于「${account.name}」的期初生效日（${account.openedOn}），请在账户管理中调整期初日期"
+            }
+        }
         s.accounts.forEach {
             date(it.openedOn, today); require(it.openingBalanceMinor in -Money.MAX..Money.MAX) { "期初余额超出范围" }
             entity(it.name, it.sortOrder, it.createdAt, it.updatedAt, it.color, it.icon)
@@ -55,7 +61,7 @@ object Ledger {
             date(e.date, today)
             require(e.amountMinor in -Money.MAX..Money.MAX && e.amountMinor != 0L && e.feeMinor in 0..Money.MAX) { "流水金额无效" }
             val account = accounts[e.accountId] ?: error("账户引用不存在")
-            require(e.date >= account.openedOn) { "流水早于账户期初生效日" }
+            accountDate(account, e.date)
             require(e.createdAt >= 0 && e.updatedAt >= e.createdAt && e.note.length <= 1000) { "流水时间戳或备注无效" }
             require(e.tagIds.distinct().size == e.tagIds.size && e.tagIds.all { tags.containsKey(it) }) { "标签引用无效" }
             require((e.externalId == null) == (e.externalSource == null)) { "外部来源字段不完整" }
@@ -78,7 +84,8 @@ object Ledger {
                 require(e.kind == "normal" && e.originalId == null && e.categoryId == null && e.subcategoryId == null && e.tagIds.isEmpty() && !e.reimbursable) { "特殊流水字段无效" }
                 if (e.type == "transfer") {
                     val target = accounts[e.toAccountId] ?: error("请选择转入账户")
-                    require(e.amountMinor > 0 && e.toAccountId != e.accountId && e.date >= target.openedOn) { "转账账户、金额或日期无效" }
+                    require(e.amountMinor > 0 && e.toAccountId != e.accountId) { "转账账户或金额无效" }
+                    accountDate(target, e.date)
                     require(if (e.feeMinor > 0) cats[e.feeCategoryId]?.type == "expense" else e.feeCategoryId == null) { "手续费分类无效" }
                 } else require(e.toAccountId == null && e.feeMinor == 0L && e.feeCategoryId == null) { "余额调整含转账字段" }
             }
@@ -110,7 +117,7 @@ object Ledger {
     }
     fun balance(s: LedgerState, accountId: String, date: String = LocalDate.now().toString()): Long {
         val a = s.account(accountId) ?: return 0
-        if (date < a.openedOn) return 0
+        if (date < a.openedOn && a.openingBalanceMinor != 0L) return 0
         return s.transactions.filter { it.date <= date }.fold(a.openingBalanceMinor) { sum, e -> Math.addExact(sum, movement(e, accountId)) }
     }
     fun net(s: LedgerState, date: String = LocalDate.now().toString()): Long = s.accounts.fold(0L) { sum, a -> Math.addExact(sum, balance(s, a.id, date)) }

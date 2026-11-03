@@ -54,7 +54,7 @@ fun AccountsScreen(vm: SpendyViewModel, s: LedgerState, onBrowse: (EntryFilter) 
             val part = Totals(stats.filter { it.type == "expense" }.sumOf { it.amount }, stats.filter { it.type == "income" }.sumOf { it.amount })
             SpendCard(Modifier.fillMaxWidth().clickable { onBrowse(EntryFilter(accountId = a.id)) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconCircle(a.icon, colorOf(a.color)); Spacer(Modifier.width(13.dp))
+                    IconCircle(a.icon, colorOf(a.color), libraryIcon = true); Spacer(Modifier.width(13.dp))
                     Column(Modifier.weight(1f)) { Text(a.name + if (a.archived) " · 已归档" else "", fontSize = 15.sp, fontWeight = FontWeight.Bold); Hint("期初生效 ${a.openedOn}") }
                     Text(if (hidden) "****" else "¥${Money.format(Ledger.balance(s, a.id))}", fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 }

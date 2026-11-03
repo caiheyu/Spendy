@@ -22,7 +22,6 @@ import java.time.*
 
 val CardShape = RoundedCornerShape(24.dp)
 val Palette = listOf("#5560E9", "#0E9F8A", "#F0564A", "#F5A623", "#EC5A9E", "#29B6F6", "#7E57C2", "#FF7A59", "#B074E8", "#1FA97A", "#8A8D9F")
-val IconChoices = listOf("wallet", "card", "money", "utensils", "coffee", "subway", "bag", "home", "film", "phone", "med", "book", "gift", "paw", "dumbbell", "scissors", "receipt", "briefcase", "trend", "award", "heart", "plane", "tag", "star", "cart", "package", "piggy", "dots")
 
 @Composable
 fun SpendCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
@@ -39,9 +38,10 @@ fun PageHeader(title: String, back: (() -> Unit)? = null, action: @Composable Ro
     }
 }
 @Composable
-fun IconCircle(name: String, color: Color, size: Dp = 44.dp) {
+fun IconCircle(name: String, color: Color, size: Dp = 44.dp, libraryIcon: Boolean = false) {
     Box(Modifier.size(size).clip(RoundedCornerShape(15.dp)).background(color.copy(alpha = .13f)), contentAlignment = Alignment.Center) {
-        SIcon(name, modifier = Modifier.size(size * .51f), tint = color)
+        if (libraryIcon) LibrarySIcon(name, modifier = Modifier.size(size * .51f), tint = color)
+        else SIcon(name, modifier = Modifier.size(size * .51f), tint = color)
     }
 }
 @Composable
@@ -112,7 +112,7 @@ fun SpendySwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
 fun TagChoiceChip(tag: Tag, selected: Boolean, onClick: () -> Unit) {
     val color = colorOf(tag.color)
     FilterChip(selected, onClick, label = { Text(tag.name, fontSize = 12.sp) },
-        leadingIcon = { SIcon(tag.icon, modifier = Modifier.size(15.dp), tint = color) },
+        leadingIcon = { LibrarySIcon(tag.icon, modifier = Modifier.size(15.dp), tint = color) },
         shape = CircleShape, colors = FilterChipDefaults.filterChipColors(
             containerColor = Color.Transparent, labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
             selectedContainerColor = color.copy(alpha = .1f), selectedLabelColor = color,
@@ -121,9 +121,9 @@ fun TagChoiceChip(tag: Tag, selected: Boolean, onClick: () -> Unit) {
 }
 @Composable
 fun SettingRow(icon: String, title: String, subtitle: String? = null, color: Color = MaterialTheme.colorScheme.primary,
-    trailing: @Composable (() -> Unit)? = null, onClick: () -> Unit) {
+    trailing: @Composable (() -> Unit)? = null, libraryIcon: Boolean = false, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconCircle(icon, color, 38.dp); Spacer(Modifier.width(13.dp))
+        IconCircle(icon, color, 38.dp, libraryIcon); Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) { Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium); if (subtitle != null) Hint(subtitle) }
         if (trailing != null) trailing() else SIcon("chevR", modifier = Modifier.size(17.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -183,7 +183,8 @@ fun EntryRow(s: LedgerState, entry: Entry, onClick: () -> Unit, selected: Boolea
     val amountColor = when { entry.type == "transfer" || entry.type == "adjustment" -> MaterialTheme.colorScheme.onSurface; positive -> Income; else -> Expense }
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
         if (selectable) { Checkbox(selected, onCheckedChange = { onClick() }); Spacer(Modifier.width(3.dp)) }
-        IconCircle(if (entry.type == "transfer") "refresh" else if (entry.type == "adjustment") "wallet" else c?.icon ?: "receipt", c?.color?.let(::colorOf) ?: MaterialTheme.colorScheme.primary)
+        IconCircle(if (entry.type == "transfer") "refresh" else if (entry.type == "adjustment") "wallet" else c?.icon ?: "receipt", c?.color?.let(::colorOf) ?: MaterialTheme.colorScheme.primary,
+            libraryIcon = c != null && entry.type !in listOf("transfer", "adjustment"))
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)

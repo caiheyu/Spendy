@@ -53,6 +53,36 @@ class DataToolsTest {
         val password = "password-123".toCharArray(); val encrypted = BackupCodec.encode(b, password)
         assertTrue(BackupCodec.isEncrypted(encrypted)); assertEquals(b, BackupCodec.decode(encrypted, password))
     }
+    @Test fun iconLibrarySurvivesPlaintextAndEncryptedBackups() {
+        val icon = LibraryIcon("图片", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aXpAAAAAASUVORK5CYII=")
+        val library = IconLibrary().add(icon).remove(BuiltInIcons.first())
+            .withScopes(icon, listOf("category", "tag")).withScopes(BuiltInIcons[1], listOf("account"))
+            .replaceImage(BuiltInIcons[1], icon.value)
+        val backup = Backup(data = base(), settings = AppSettings(iconLibrary = library))
+        assertEquals(backup, BackupCodec.decode(BackupCodec.encode(backup, null)))
+        val password = "password-123".toCharArray()
+        assertEquals(backup, BackupCodec.decode(BackupCodec.encode(backup, password), password))
+    }
+    @Test fun backupsCreatedBeforeIconLibraryAreStillAccepted() {
+        val backup = Backup(data = base(), settings = AppSettings())
+        val tree = LedgerJson.parseToJsonElement(BackupCodec.encode(backup, null).toString(Charsets.UTF_8)).jsonObject
+        val oldSettings = JsonObject(tree.getValue("settings").jsonObject - "iconLibrary")
+        val oldBackup = JsonObject(tree + ("settings" to oldSettings))
+        assertEquals(backup, BackupCodec.decode(oldBackup.toString().toByteArray()))
+        val incomplete = JsonObject(tree + ("settings" to JsonObject(oldSettings - "theme")))
+        assertThrows(IllegalArgumentException::class.java) { BackupCodec.decode(incomplete.toString().toByteArray()) }
+    }
+    @Test fun backupsBeforeVisibilitySettingsDefaultToAllScopes() {
+        val library = IconLibrary().remove(BuiltInIcons.first())
+        val backup = Backup(data = base(), settings = AppSettings(iconLibrary = library))
+        val tree = LedgerJson.parseToJsonElement(BackupCodec.encode(backup, null).toString(Charsets.UTF_8)).jsonObject
+        val settings = tree.getValue("settings").jsonObject
+        val oldLibrary = JsonObject(settings.getValue("iconLibrary").jsonObject - setOf("iconScopes", "imageOverrides"))
+        val oldBackup = JsonObject(tree + ("settings" to JsonObject(settings + ("iconLibrary" to oldLibrary))))
+        val decoded = BackupCodec.decode(oldBackup.toString().toByteArray())
+        assertEquals(backup, decoded)
+        IconScopes.forEach { (scope, _) -> assertEquals(library.available(base()), decoded.settings.iconLibrary.available(base(), scope)) }
+    }
     @Test fun wrongPasswordDoesNotDecrypt() {
         val b = Backup(data = base(), settings = AppSettings()); val encrypted = BackupCodec.encode(b, "password-123".toCharArray())
         assertThrows(IllegalStateException::class.java) { BackupCodec.decode(encrypted, "wrong-password".toCharArray()) }

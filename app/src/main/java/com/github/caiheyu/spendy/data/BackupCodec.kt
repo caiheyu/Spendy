@@ -21,9 +21,9 @@ object BackupCodec {
     @Serializable private data class Envelope(val app: String = "spendy-backup", val version: Int = 2,
         val encrypted: Boolean = true, val kdf: Kdf, val cipher: Encryption, val data: String)
     fun isEncrypted(bytes: ByteArray): Boolean = LedgerJson.parseToJsonElement(bytes.toString(Charsets.UTF_8).removePrefix("\uFEFF")).jsonObject["encrypted"]?.jsonPrimitive?.booleanOrNull == true
-    private fun required(value: JsonObject, serializer: KSerializer<*>) {
+    private fun required(value: JsonObject, serializer: KSerializer<*>, optionalFields: Set<String> = emptySet()) {
         val d = serializer.descriptor
-        require((0 until d.elementsCount).all { value.containsKey(d.getElementName(it)) }) { "备份缺少必要字段：${d.serialName}" }
+        require((0 until d.elementsCount).all { d.getElementName(it) in optionalFields || value.containsKey(d.getElementName(it)) }) { "备份缺少必要字段：${d.serialName}" }
     }
     fun encode(backup: Backup, password: CharArray?): ByteArray {
         validate(backup)
@@ -67,7 +67,7 @@ object BackupCodec {
         val data = tree.getValue("data").jsonObject
         required(data, com.github.caiheyu.spendy.domain.LedgerState.serializer())
         required(data.getValue("meta").jsonObject, com.github.caiheyu.spendy.domain.LedgerMeta.serializer())
-        required(tree.getValue("settings").jsonObject, com.github.caiheyu.spendy.domain.AppSettings.serializer())
+        required(tree.getValue("settings").jsonObject, com.github.caiheyu.spendy.domain.AppSettings.serializer(), setOf("iconLibrary"))
         mapOf("accounts" to com.github.caiheyu.spendy.domain.Account.serializer(),
             "categories" to com.github.caiheyu.spendy.domain.Category.serializer(),
             "subcategories" to com.github.caiheyu.spendy.domain.Subcategory.serializer(),

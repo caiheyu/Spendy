@@ -62,6 +62,48 @@ class LedgerTest {
         assertEquals(0L, Ledger.balance(base(), "a-cash", "2019-12-31"))
         fails { Ledger.save(base(), expense().copy(date = "2019-12-31")) }; fails { Ledger.save(base(), expense().copy(date = LocalDate.now().plusDays(1).toString())) }
     }
+    @Test fun zeroOpeningAccountsAllowHistoricalIncomeAndExpenses() {
+        val date = LocalDate.now().minusDays(2).toString()
+        var s = Ledger.save(Ledger.seed(), expense().copy(date = date))
+        assertEquals(-10_000L, Ledger.balance(s, "a-cash", date))
+        s = Ledger.save(s, Entry(type = "income", amountMinor = 25_000, date = date, accountId = "a-cash", categoryId = "c-salary"))
+        assertEquals(15_000L, Ledger.balance(s, "a-cash", date))
+        assertEquals(15_000L, Ledger.net(s))
+        assertEquals(0L, Ledger.balance(s, "a-cash", LocalDate.parse(date).minusDays(1).toString()))
+        assertEquals(Totals(10_000, 25_000), Ledger.totals(s, date, date))
+    }
+    @Test fun existingEntryCanBeMovedBeforeZeroOpeningDate() {
+        val today = LocalDate.now().toString()
+        val earlier = LocalDate.now().minusDays(2).toString()
+        val entry = expense().copy(date = today)
+        val s = Ledger.save(Ledger.save(Ledger.seed(), entry), EntryDraft.from(entry).copy(date = earlier).toEntry())
+        assertEquals(1, s.transactions.size)
+        assertEquals(earlier, s.entry(entry.id)?.date)
+        assertEquals(-10_000L, Ledger.balance(s, "a-cash", earlier))
+        assertEquals(Totals(), Ledger.totals(s, today, today))
+    }
+    @Test fun historicalTransferIncludesBothZeroOpeningAccountsAndFee() {
+        val date = LocalDate.now().minusDays(2).toString()
+        val seed = Ledger.seed().let { it.copy(accounts = it.accounts + Account(id = "b", name = "卡")) }
+        val s = Ledger.save(seed, Entry(type = "transfer", amountMinor = 10_000, date = date,
+            accountId = "a-cash", toAccountId = "b", feeMinor = 100, feeCategoryId = "c-fee"))
+        assertEquals(-10_100L, Ledger.balance(s, "a-cash", date))
+        assertEquals(10_000L, Ledger.balance(s, "b", date))
+        assertEquals(-100L, Ledger.net(s, date))
+    }
+    @Test fun historicalTransferCannotPrecedeNonzeroTargetOpeningBalance() {
+        val seed = Ledger.seed().let { it.copy(accounts = it.accounts + Account(id = "b", name = "卡", openingBalanceMinor = 1000)) }
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            Ledger.save(seed, Entry(type = "transfer", amountMinor = 100, date = LocalDate.now().minusDays(2).toString(), accountId = "a-cash", toAccountId = "b"))
+        }
+        assertTrue(error.message!!.contains("卡"))
+        assertTrue(error.message!!.contains("期初生效日"))
+    }
+    @Test fun historicalDatesStillRespectSupportedRange() {
+        val entry = expense().copy(date = "1900-01-01")
+        assertEquals(-10_000L, Ledger.balance(Ledger.save(Ledger.seed(), entry), "a-cash", entry.date))
+        fails { Ledger.save(Ledger.seed(), entry.copy(date = "1899-12-31")) }
+    }
     @Test fun negativeBalancesAreLegitimate() { val s = Ledger.save(base(), expense().copy(amountMinor = 200_000)); assertEquals(-100_000L, Ledger.net(s)) }
     @Test fun archivedReferenceCanBePreservedButNotNewlyAssigned() {
         var s = Ledger.save(base(), expense()); s = s.copy(categories = s.categories.map { if (it.id == "c-food") it.copy(archived = true) else it })

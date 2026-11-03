@@ -19,6 +19,14 @@ import com.github.caiheyu.spendy.ui.theme.LocalSpendyColors
 
 @Composable
 fun SpendyApp(vm: SpendyViewModel) {
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    CompositionLocalProvider(LocalIconLibrary provides settings.iconLibrary) {
+        SpendyContent(vm)
+    }
+}
+
+@Composable
+private fun SpendyContent(vm: SpendyViewModel) {
     val s by vm.ledger.collectAsStateWithLifecycle()
     val fatal by vm.fatal.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
@@ -50,7 +58,8 @@ fun SpendyApp(vm: SpendyViewModel) {
                 composable("home") { TransactionsScreen(vm, state, onEntry = { nav.navigate("detail/${it.id}") }, onAdd = { edit() }, onSearch = { nav.navigate("search") }, onPending = { browse(EntryFilter(pendingOnly = true)) }) }
                 composable("charts") { ChartsScreen(vm, state, ::browse) }
                 composable("accounts") { AccountsScreen(vm, state, ::browse, onManage = { nav.navigate("manage/account") }) }
-                composable("me") { SettingsScreen(vm, state, onManage = { nav.navigate("manage/$it") }, onData = { nav.navigate("data") }) }
+                composable("me") { SettingsScreen(vm, state, onManage = { nav.navigate("manage/$it") }, onData = { nav.navigate("data") }, onIcons = { nav.navigate("icons") }) }
+                composable("icons") { IconLibraryScreen(vm, state, onBack = { nav.popBackStack() }) }
                 composable("entry") { EntryScreen(vm, state, onClose = { nav.popBackStack() }, onNewAccount = { nav.navigate("manage/account") }) }
                 composable("detail/{id}") { b ->
                     val entry = state.entry(b.arguments?.getString("id"))

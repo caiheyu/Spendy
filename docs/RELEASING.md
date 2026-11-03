@@ -1,17 +1,17 @@
 # 使用 Android Studio 签名并发布 Spendy
 
-适用当前项目：包名 `com.github.caiheyu.spendy`，最低 Android 8.0（API 26）。当前版本为 `0.1.0`、`versionCode = 1`。本指南不会自动创建签名密钥、提交代码或发布 GitHub Release。
+适用当前项目：包名 `com.github.caiheyu.spendy`，最低 Android 8.0（API 26）。当前版本为 `0.2.0`、`versionCode = 2`。本指南不会自动创建签名密钥、提交代码或发布 GitHub Release。
 
 ## 1. 确定版本并保存源代码
 
 在 `app/build.gradle.kts` 的 `defaultConfig` 中设置版本：
 
 ```kotlin
-versionCode = 1
-versionName = "0.1.0"
+versionCode = 2
+versionName = "0.2.0"
 ```
 
-首版可以保留当前值。后续每次发布都增加 `versionCode`，例如下一版设为 `2` 和 `"0.1.1"`。内置更新以 `versionCode` 判断新版本，标签文字不会替代它。修改后点击 Android Studio 的 **Sync Now**。
+打包当前版本时保留上述值。后续每次发布都增加 `versionCode`，例如下一版设为 `3` 和 `"0.2.1"`。内置更新以 `versionCode` 判断新版本，标签文字不会替代它。修改后点击 Android Studio 的 **Sync Now**。
 
 在 Android Studio 的 **Commit** 窗口检查并提交此次发布的全部源代码，然后 **Git → Push** 推送至 `origin/master`。创建版本标签时选择包含本次发布完整代码的提交。确保暂存与未暂存的最终修改均纳入提交；不要加入密码、密钥、用户备份或本地配置。
 
@@ -53,7 +53,7 @@ Spendy 内置更新固定读取 GitHub 最新正式 Release 的 `update.json` �
 cd C:\workspace\Spendy
 .\scripts\prepare-release.ps1 `
   -ApkPath 'C:\workspace\Spendy\app\release\app-release.apk' `
-  -ReleaseNotes '首个公开版本：本地记账、账户管理、收支统计、CSV 与加密备份。'
+  -ReleaseNotes '新增共享图标管理、可见范围筛选与全局图标替换；修复账单左滑删除和历史日期记账问题。'
 ```
 
 脚本默认使用本机 SDK 的 `C:\develop\android\Sdk\build-tools\36.0.0`。换电脑时可通过 `-BuildToolsDirectory` 指定包含 `aapt.exe` 和 `apksigner.bat` 的目录。需要 Java 可从终端访问。
@@ -63,7 +63,7 @@ cd C:\workspace\Spendy
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-release.ps1 `
   -ApkPath 'C:\workspace\Spendy\app\release\app-release.apk' `
-  -ReleaseNotes 'Spendy 0.1.0'
+  -ReleaseNotes 'Spendy 0.2.0'
 ```
 
 脚本从 APK 本身读取版本与最低 SDK，验证 APK 签名、包名、单证书要求及文件大小，拒绝 debuggable 包和标准 Android debug 证书，再生成两个附件：
@@ -78,7 +78,7 @@ C:\workspace\Spendy\app\build\outputs\github-release\update.json
 ## 5. 在 GitHub 发布
 
 1. 打开仓库 <https://github.com/caiheyu/Spendy>，进入 **Releases → Draft a new release / Create a new release**。
-2. 选择或新建标签，例如首版 `v0.1.0`；**Target** 选择已经推送完整开发代码的 `master` 最新提交。发布标题可填 `Spendy v0.1.0`。
+2. 选择或新建标签，例如当前版 `v0.2.0`；**Target** 选择已经推送完整开发代码的 `master` 最新提交。发布标题可填 `Spendy v0.2.0`。
 3. 填写更新说明，将上一步生成的 **`spendy.apk` 和 `update.json` 一起拖入附件区域**，等待两者上传完成。
 4. 首个正式发布不要选择 **pre-release**；若显示 **Set as the latest release**，选中它。确认仓库公开，以便无 GitHub 凭据的应用访问更新附件。
 5. 点击 **Publish release**。GitHub 自动附加的源码 zip / tar.gz 不是可安装应用，用户应下载附件中的 `spendy.apk`。

@@ -73,13 +73,17 @@ class RepositoryTest {
         assertNotNull(repo.state.first().account("a-cash"))
     }
     @Test fun restoreAndRollbackPreserveSettingsAndMonotonicRevision() = runBlocking {
-        repo.save(expense()); prefs.setSettings(AppSettings(theme = "dark"))
+        val library = IconLibrary().remove(BuiltInIcons.first()).withScopes(BuiltInIcons[1], listOf("account"))
+            .replaceImage(BuiltInIcons[1], "coffee")
+        repo.save(expense()); prefs.setSettings(AppSettings(theme = "dark", iconLibrary = library))
         val backup = repo.export(); repo.save(expense("later")); prefs.setSettings(AppSettings(theme = "light"))
         val revision = repo.state.first().meta.revision
         repo.restore(backup)
         assertEquals(1, repo.state.first().transactions.size); assertEquals("dark", prefs.settings.first().theme)
+        assertEquals(library, prefs.settings.first().iconLibrary)
         assertTrue(repo.state.first().meta.revision > revision); assertEquals(repo.state.first().meta.revision, prefs.settings.first().backedUpRevision)
         repo.undoRestore(); assertEquals(2, repo.state.first().transactions.size); assertEquals("light", prefs.settings.first().theme)
+        assertEquals(IconLibrary(), prefs.settings.first().iconLibrary)
     }
     @Test fun startupCompletesInterruptedPreferenceRestore() = runBlocking {
         val target = AppSettings(theme = "dark", hideAmounts = false)

@@ -1,11 +1,6 @@
 @file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.github.caiheyu.spendy.ui
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.util.Base64
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
@@ -17,14 +12,13 @@ import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.caiheyu.spendy.domain.*
-import com.github.caiheyu.spendy.data.readLimited
 import com.github.caiheyu.spendy.ui.theme.*
-import java.io.ByteArrayOutputStream
 import kotlin.math.roundToInt
 
 @Composable
@@ -55,7 +49,7 @@ fun ManagementScreen(vm: SpendyViewModel, s: LedgerState, kind: String, onBack: 
                     }, onDragCancel = { offset = 0f }, onDrag = { change, amount -> change.consume(); offset += amount.y })
                 }) {
                 Column(Modifier.padding(horizontal = 15.dp, vertical = 4.dp)) {
-                    SettingRow(item.icon, item.name + if (item.archived) " · 已归档" else "", color = colorOf(item.color), trailing = { SIcon("pencil", "编辑", Modifier.size(16.dp)) }) { editing = item.id }
+                    SettingRow(item.icon, item.name + if (item.archived) " · 已归档" else "", color = colorOf(item.color), trailing = { SIcon("pencil", "编辑", Modifier.size(16.dp)) }, libraryIcon = true) { editing = item.id }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         if (kind == "category") TextButton(onClick = { subParent = item.id }) { Text("子分类", fontSize = 11.sp) }
                         TextButton(onClick = { vm.action("已保存") {
@@ -90,30 +84,20 @@ private data class ManageItem(val id: String, val name: String, val icon: String
 
 @Composable
 private fun EntityEditor(vm: SpendyViewModel, s: LedgerState, kind: String, id: String?, type: String, onDismiss: () -> Unit) {
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    val icons = remember(settings.iconLibrary, s, kind) { settings.iconLibrary.available(s, kind) }
     val account = s.account(id); val category = s.category(id); val tag = s.tags.find { it.id == id }
     var name by remember { mutableStateOf(account?.name ?: category?.name ?: tag?.name ?: "") }
-    var icon by remember { mutableStateOf(account?.icon ?: category?.icon ?: tag?.icon ?: if (kind == "account") "wallet" else "tag") }
+    var icon by remember { mutableStateOf(account?.icon ?: category?.icon ?: tag?.icon ?:
+        icons.firstOrNull { it.value == if (kind == "account") "wallet" else "tag" }?.value ?: icons.firstOrNull()?.value.orEmpty()) }
     var color by remember { mutableStateOf(account?.color ?: category?.color ?: tag?.color ?: "#5560E9") }
     var opening by remember { mutableStateOf(Money.decimal(account?.openingBalanceMinor ?: 0)) }
     var openedOn by remember { mutableStateOf(account?.openedOn ?: java.time.LocalDate.now().toString()) }
     var datePicker by remember { mutableStateOf(false) }; var confirm by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val importer = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) vm.action {
-            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readLimited(5 * 1024 * 1024) } ?: error("无法读取图片")
-            require(bytes.size <= 5 * 1024 * 1024) { "图标图片不能超过 5 MB" }
-            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }; BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-            require(opts.outWidth > 0 && opts.outHeight > 0) { "图片格式不支持" }
-            opts.inJustDecodeBounds = false; opts.inSampleSize = (maxOf(opts.outWidth, opts.outHeight) / 192).coerceAtLeast(1)
-            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: error("图片格式不支持")
-            val scaled = Bitmap.createScaledBitmap(bitmap, 96, 96, true)
-            val output = ByteArrayOutputStream(); scaled.compress(Bitmap.CompressFormat.PNG, 100, output)
-            icon = "data:image/png;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
-            if (scaled != bitmap) scaled.recycle(); bitmap.recycle()
-        }
-    }
+    val importer = rememberIconImporter(vm) { icon = it.value }
     fun save() { vm.action("已保存", done = onDismiss) {
         require(name.trim().isNotEmpty()) { "请输入名称" }
+        require(icon.isNotBlank()) { "请先导入或选择一个图标" }
         when (kind) {
             "account" -> vm.repository.saveAccount((account ?: Account(name = name.trim(), sortOrder = s.accounts.size)).copy(name = name.trim(), icon = icon, color = color, openingBalanceMinor = Money.parse(opening), openedOn = openedOn))
             "tag" -> vm.repository.saveTag((tag ?: Tag(name = name.trim(), sortOrder = s.tags.size)).copy(name = name.trim(), icon = icon, color = color))
@@ -121,13 +105,10 @@ private fun EntityEditor(vm: SpendyViewModel, s: LedgerState, kind: String, id: 
         }
     } }
     SimpleSheet(if (id == null) "新建项目" else "编辑项目", onDismiss) {
-        Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), horizontalArrangement = Arrangement.Center) { IconCircle(icon, colorOf(color), 60.dp) }
+        Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), horizontalArrangement = Arrangement.Center) { IconCircle(icon, colorOf(color), 60.dp, libraryIcon = true) }
         OutlinedTextField(name, { name = it.take(60) }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(Modifier.height(16.dp)); Hint("图标")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            IconChoices.forEach { choice -> Box(Modifier.size(39.dp).clip(CardShape).background(if (icon == choice) colorOf(color).copy(alpha = .18f) else MaterialTheme.colorScheme.background).clickable { icon = choice }, contentAlignment = Alignment.Center) { SIcon(choice, choice, Modifier.size(21.dp), colorOf(color)) } }
-        }
-        if (kind != "tag") TextButton(onClick = { importer.launch("image/*") }) { SIcon("upload", modifier = Modifier.size(15.dp)); Text("  导入图片图标 · 自动压缩至 96×96") }
+        IconPicker(icons, s, icon, colorOf(color), { icon = it.value }, { importer.launch("image/*") })
         Spacer(Modifier.height(14.dp)); Hint("颜色")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Palette.forEach { value -> Box(Modifier.size(28.dp).clip(CircleShape).background(colorOf(value)).clickable { color = value }, contentAlignment = Alignment.Center) { if (color == value) SIcon("check", modifier = Modifier.size(17.dp), tint = Color.White) } }
@@ -136,10 +117,10 @@ private fun EntityEditor(vm: SpendyViewModel, s: LedgerState, kind: String, id: 
             Spacer(Modifier.height(18.dp))
             OutlinedTextField(opening, { opening = it }, label = { Text("期初余额（可为负数）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             SettingRow("calendar", "期初生效日期", openedOn) { datePicker = true }
-            Hint("流水不能早于期初生效日。修改期初会重新计算历史余额，负余额可用于信用卡。")
+            Hint("期初余额为 0 时可补记更早的流水；非零时流水不能早于期初生效日。修改期初会重新计算历史余额，负余额可用于信用卡。")
         }
         Spacer(Modifier.height(20.dp))
-        Button(onClick = { if (account != null && (opening != Money.decimal(account.openingBalanceMinor) || openedOn != account.openedOn)) confirm = true else save() }, modifier = Modifier.fillMaxWidth().height(49.dp), enabled = name.isNotBlank(), shape = CardShape) { Text("保存") }
+        Button(onClick = { if (account != null && (opening != Money.decimal(account.openingBalanceMinor) || openedOn != account.openedOn)) confirm = true else save() }, modifier = Modifier.fillMaxWidth().height(49.dp), enabled = name.isNotBlank() && icon.isNotBlank(), shape = CardShape) { Text("保存") }
     }
     if (datePicker) DateWheel("期初生效日期", openedOn, onDismiss = { datePicker = false }) { openedOn = it; datePicker = false }
     if (confirm) ConfirmDialog("重新计算历史余额？", "修改 ${account?.name} 的期初余额或生效日期后，历史余额曲线会重新计算。不会生成收入或支出。", "确认保存", { confirm = false }, ::save)

@@ -22,6 +22,7 @@ import com.github.caiheyu.spendy.ui.theme.*
 fun EntryScreen(vm: SpendyViewModel, s: LedgerState, onClose: () -> Unit, onNewAccount: () -> Unit) {
     val current by vm.editor.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val error by vm.editorError.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { if (vm.editor.value == null) vm.openEditor() }
     val draft = current ?: return
     var sheet by remember { mutableStateOf<String?>(null) }
@@ -69,7 +70,7 @@ fun EntryScreen(vm: SpendyViewModel, s: LedgerState, onClose: () -> Unit, onNewA
                                 .padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                 val active = draft.categoryId == c.id
                                 Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(if (active) colorOf(c.color).copy(alpha = .12f) else Color.Transparent), contentAlignment = Alignment.Center) {
-                                    SIcon(c.icon, modifier = Modifier.size(24.dp), tint = if (active) colorOf(c.color) else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    LibrarySIcon(c.icon, modifier = Modifier.size(24.dp), tint = if (active) colorOf(c.color) else MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 Text(c.name, fontSize = 11.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                                     color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -118,6 +119,8 @@ fun EntryScreen(vm: SpendyViewModel, s: LedgerState, onClose: () -> Unit, onNewA
         }
         Surface(color = MaterialTheme.colorScheme.outlineVariant, shadowElevation = 0.dp) {
             Column(Modifier.padding(top = 1.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                error?.let { Text(it, color = Expense, fontSize = 12.sp,
+                    modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal = 16.dp, vertical = 8.dp)) }
                 listOf(listOf("1", "2", "3", "+"), listOf("4", "5", "6", "−"), listOf("7", "8", "9", "⌫"), listOf(".", "0", "再记", "完成")).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) { row.forEach { key ->
                         val done = key == "完成"
@@ -152,7 +155,7 @@ fun EntryScreen(vm: SpendyViewModel, s: LedgerState, onClose: () -> Unit, onNewA
         "date" -> DateWheel("选择流水日期", draft.date, onDismiss = { sheet = null }) { value -> change { it.copy(date = value) }; sheet = null }
         "account", "toAccount" -> SimpleSheet(if (sheet == "account") "选择账户" else "选择转入账户", { sheet = null }) {
             s.accounts.filter { !it.archived || it.id == old?.accountId || it.id == old?.toAccountId }.sortedBy { it.sortOrder }.forEach { a ->
-                SettingRow(a.icon, a.name, if (vm.settings.value.hideAmounts) "****" else "¥${Money.format(Ledger.balance(s, a.id))}", colorOf(a.color)) {
+                SettingRow(a.icon, a.name, if (vm.settings.value.hideAmounts) "****" else "¥${Money.format(Ledger.balance(s, a.id))}", colorOf(a.color), libraryIcon = true) {
                     if (sheet == "account") change { it.copy(accountId = a.id) } else change { it.copy(toAccountId = a.id) }; sheet = null
                 }
             }
@@ -160,13 +163,13 @@ fun EntryScreen(vm: SpendyViewModel, s: LedgerState, onClose: () -> Unit, onNewA
         }
         "category" -> SimpleSheet("选择分类", { sheet = null }) {
             s.categories.filter { it.type == draft.type && (!it.archived || it.id == old?.categoryId) }.sortedBy { it.sortOrder }.forEach { c ->
-                SettingRow(c.icon, c.name, color = colorOf(c.color)) { change { it.copy(categoryId = c.id, subcategoryId = null) }; sheet = if (s.subcategories.any { it.categoryId == c.id && !it.archived }) "subcategory" else null }
+                SettingRow(c.icon, c.name, color = colorOf(c.color), libraryIcon = true) { change { it.copy(categoryId = c.id, subcategoryId = null) }; sheet = if (s.subcategories.any { it.categoryId == c.id && !it.archived }) "subcategory" else null }
             }
         }
         "subcategory" -> SimpleSheet("${s.category(draft.categoryId)?.name.orEmpty()} · 细分", { sheet = null }) {
             SettingRow("dots", "不细分") { change { it.copy(subcategoryId = null) }; sheet = null }
             s.subcategories.filter { it.categoryId == draft.categoryId && (!it.archived || it.id == old?.subcategoryId) }.sortedBy { it.sortOrder }.forEach { sub ->
-                SettingRow(s.category(draft.categoryId)?.icon ?: "tag", sub.name) { change { it.copy(subcategoryId = sub.id) }; sheet = null }
+                SettingRow(s.category(draft.categoryId)?.icon ?: "tag", sub.name, libraryIcon = true) { change { it.copy(subcategoryId = sub.id) }; sheet = null }
             }
         }
         "tags" -> SimpleSheet("选择标签 · 可多选", { sheet = null }) {
